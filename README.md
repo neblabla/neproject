@@ -31,5 +31,4 @@
 - Итог №2
 
 ## Контактная информация
-Email: ivan.lushin@icloud.com <br>
-[Telegram](https://t.me/neblabla1) | [VK](https://vk.com/neblabla)
+ivan.lushin@icloud.com | [Telegram](https://t.me/neblabla1) | [VK](https://vk.com/neblabla)
