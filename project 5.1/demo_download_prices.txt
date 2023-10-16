@@ -1,0 +1,2021 @@
+Option Explicit
+    Dim Ch As Selenium.ChromeDriver                     'Переменная для работы с браузером
+    Dim FindBy As New Selenium.By                       'Сокращение поисковой единицы By
+            'Переменные для процедуры скачивания
+    Dim article As String, URL As String, URL2 As String, Login As String, Password As String, LoginCSS As String, PasswordCSS As String, ButtonCSS As String, FileName As String, filePath As String
+    Dim DownloadFolder As String, Prices As String    'Папки для загрузок и файлов
+    
+    Dim Request(2, 4) As String     'Для скачивания прайсов с почты   ''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    Dim Openbook As Boolean         'Для обработки открытых книг с ошибками
+    Dim ErrorI As Double           'Для счетчика ошибок
+    Dim ErrorMessage As String      'Сообщение об ошибках
+    Dim successmail As Boolean        'Флаг ошибки с почты
+    Dim t As Double                 'Таймер для внутренних процедур
+    Dim Allt As Double              'Таймер для общей процедуры
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : DownloadFromMail
+'
+' Purpose   : Support Function
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Function DownloadFromMail()
+
+On Error GoTo ErrorHandl
+Debug.Print "Скачивание прайсов с почты ..."
+
+    URL = "https://mail.yandex.ru/?uid=1130000029312481#inbox"
+    Login = "login"
+    Password = "parol"
+
+    Set Ch = New Selenium.ChromeDriver
+        DownloadFolder = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\Исходники для исходников\"
+        Ch.SetPreference "download.default_directory", (DownloadFolder)
+        Ch.AddArgument "start-maximized"
+        Ch.start
+        Ch.Get URL
+        
+        If Ch.IsElementPresent(FindBy.XPath("//*[@id='js-button']"), 3000) Then
+            Stop
+        End If
+
+
+' Переход на страницу авторизации
+'======================================================================================
+ButtonCSS = "#root > div.Background_1BqcnsQB2gBAMrnbsU_Okz > div > header > div.SmallHeader_10gL9KctcHHvOwoPL2Nnmy > div.ActionButtons_1KQUh4y2uqGFcS5C_M9sDV > a.Button2.Button2_type_link.Button2_view_default.Button2_size_m"
+    If Not Ch.IsElementPresent(FindBy.Css(ButtonCSS)) Then
+        Debug.Print "Сломался адрес кнопки Входа": GoTo ErrorHandl
+    End If: Ch.FindElement(FindBy.Css(ButtonCSS)).Click
+
+ButtonCSS = "div.AuthLoginInputToggle-wrapper > div:nth-child(1) > button"
+    Ch.FindElement(FindBy.Css(ButtonCSS)).Click
+
+
+' Ввод Логина
+'======================================================================================
+LoginCSS = "#passp-field-login"
+    If Not Ch.IsElementPresent(FindBy.Css(LoginCSS), 3000) Then
+        Debug.Print "Сломался адрес поля ввода логина" ': GoTo ErrorHandl
+    End If
+    Ch.FindElement(FindBy.Css(LoginCSS)).SendKeys Login
+
+ButtonCSS = "div.passp-button.passp-sign-in-button"
+    If Not Ch.IsElementPresent(FindBy.Css(ButtonCSS), 3000) Then
+        Debug.Print "Сломался адрес кнопки логина" ': GoTo ErrorHandl
+    End If: Ch.FindElement(FindBy.Css(ButtonCSS)).Click
+
+
+' Ввод пароля
+'======================================================================================
+PasswordCSS = "#passp-field-passwd"
+    If Not Ch.IsElementPresent(FindBy.Css(PasswordCSS), 3000) Then
+        Debug.Print "Сломался адрес поля ввода пароля" ': GoTo ErrorHandl
+    End If: Ch.FindElement(FindBy.Css(PasswordCSS)).SendKeys Password
+
+ButtonCSS = "#passp\:sign-in"
+    If Not Ch.IsElementPresent(FindBy.Css(ButtonCSS), 3000) Then
+        Debug.Print "Сломался адрес кнопки пароля" ': GoTo ErrorHandl
+    End If: Ch.FindElement(FindBy.Css(ButtonCSS)).Click
+
+
+    Debug.Print "Авторизация прошла успешно"
+
+' Поиск сообщения и скачивание прайса
+'======================================================================================
+    Request(0, 0) = "LO":       Request(1, 0) = "Новости от ООО ""Компания Логос"""
+    Request(0, 1) = "AR":       Request(1, 1) = "Прайс Артимьюзик"
+    Request(0, 2) = "NS":       Request(1, 2) = "Прайс-лист для дилеров Нева-Саунд"
+    Request(0, 3) = "MI":       Request(1, 3) = "MixArt (КУРС"
+    Request(0, 4) = "CTC":      Request(1, 4) = "остатки СТС"
+    
+
+
+    Dim n As Integer
+    For n = 0 To UBound(Request, 2)
+    
+                'Поиск письма с прайсом
+                '======================================================================================
+                    Dim SearchClass As String
+                        SearchClass = "textinput__control"
+                    If Not Ch.IsElementPresent(FindBy.Class(SearchClass), 10000) Then
+                        Debug.Print Request(0, n) & " - Сломался адрес поля поиска" ': GoTo ErrorHandl
+                    End If: Ch.FindElement(FindBy.Class(SearchClass)).SendKeys Request(1, n)
+                
+                    ButtonCSS = "div.search-input.search-input_search-icon_right > form > button"
+                    If Not Ch.IsElementPresent(FindBy.Css(ButtonCSS), 10000) Then
+                        Debug.Print Request(0, n) & " - Сломался адрес кнопки поиска" ': GoTo ErrorHandl
+                    End If: Ch.FindElement(FindBy.Css(ButtonCSS)).Click
+        
+                Debug.Print "Поиск прайса " & Request(0, n) & " по словам: " & Request(1, n)
+
+
+                'Переход в письмо и скачивание прайса
+                '======================================================================================
+                                
+                Dim first_mail_xpath As String: first_mail_xpath = "//*[@id='js-apps-container']/div[2]/div[7]/div/div[2]/div[1]/div[2]/div/main/div[7]/div[1]/div/div/div[3]/div/div[2]/div/div/div/a/div/span[2]/div/span/span[1]"
+                Dim i_do As Integer
+                i_do = 0
+                Do Until InStr(1, Ch.FindElement(FindBy.XPath(first_mail_xpath)).Text, Request(1, n)) >= 1 _
+                        Or InStr(1, Ch.FindElement(FindBy.XPath(first_mail_xpath)).Text, "остатки") >= 1 _
+                        Or i_do = 10
+                i_do = i_do + 1
+                Ch.Wait (300)
+                Loop
+                
+                    Dim mailXpatch As String: mailXpatch = "//div[@class='ns-view-container-desc mail-MessagesList js-messages-list']/div[2]/div/div/div/a/div/span[1]"
+                    If Not Ch.IsElementPresent(FindBy.XPath(mailXpatch), 10000) Then
+                        Debug.Print Request(0, n) & " - Сломался адрес письма" ': GoTo ErrorHandl
+                    End If: Ch.FindElement(FindBy.XPath(mailXpatch)).Click
+                Ch.Wait 300
+                                                                       '
+                    Dim downloadB_Xpatch As String: downloadB_Xpatch = "//*[@id='js-apps-container']/div[2]/div[7]/div/div[2]/div[1]/div[2]/div/main/div[7]/div[2]/div/div/div/div/div[2]/div/div[3]/div/div/div[2]/a"
+                    If Not Ch.IsElementPresent(FindBy.XPath(downloadB_Xpatch), 3000) Then
+                        Debug.Print Request(0, n) & " - Сломался адрес кнопки скачивания" ': GoTo ErrorHandl
+                    End If: Ch.FindElement(FindBy.XPath(downloadB_Xpatch)).Click
+                    
+                Debug.Print "Скачивание прайса - " & Request(0, n) & "..."
+                    
+                    Dim Filename_Xpatch As String: Filename_Xpatch = "//*[@id='js-apps-container']/div[2]/div[7]/div/div[2]/div[1]/div[2]/div/main/div[7]/div[2]/div/div/div/div/div[2]/div/div[3]/div/div/div[1]/a/div/div[2]/span"
+                    If Not Ch.IsElementPresent(FindBy.XPath(Filename_Xpatch), 3000) Then
+                        Debug.Print Request(0, n) & " - Сломался адрес имени файла" ': GoTo ErrorHandl
+                    End If: Request(2, n) = Ch.FindElement(FindBy.XPath(Filename_Xpatch)).Attribute("title")
+                Ch.Wait 300
+    Next n
+    
+    Dim i As Integer
+    Do Until Dir(DownloadFolder & Request(2, n - 1), vbDirectory) <> vbNullString
+        Ch.Wait 100
+        i = i + 1
+        If i > 100 Then
+            GoTo ErrorHandl
+        End If
+    Loop
+    Ch.Quit
+    Debug.Print "Прайсы " & Request(0, 0) & ", " & Request(0, 1) & ", " & Request(0, 2) & ", " & Request(0, 3) & " скачаны с почты успешно!"
+    Debug.Print ""
+    successmail = True
+Exit Function
+
+ErrorHandl:
+        Debug.Print "Ошибка загрузки с почты!"
+        successmail = False
+End Function
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : DownloadFiles
+'
+' Purpose   : Support Function
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Function DownloadFiles(D_URL As String, D_FileName As String, Optional D_Login As String, Optional D_Password As String, _
+    Optional D_LoginCSS As String, Optional D_PasswordCSS As String, Optional D_ButtonCSS As String, Optional D_URL2 As String)
+
+On Error GoTo ErrorHandl
+    
+    If Dir(DownloadFolder & D_FileName, vbDirectory) <> vbNullString Then
+        Kill DownloadFolder & D_FileName
+    End If
+
+    Set Ch = New Selenium.ChromeDriver
+        Ch.SetPreference "download.default_directory", (DownloadFolder)
+        Ch.AddArgument "start-maximized"
+        Ch.start
+        Ch.Get D_URL
+
+
+' Авторизация
+'======================================================================================
+    If D_LoginCSS <> "" And D_PasswordCSS <> "" And D_ButtonCSS <> "" Then
+
+            If Not Ch.IsElementPresent(FindBy.Css(D_LoginCSS)) Then
+                Debug.Print article & " Изменился адрес поля ввода логина": Exit Function
+            End If: Ch.FindElement(FindBy.Css(D_LoginCSS)).SendKeys D_Login
+
+            If Not Ch.IsElementPresent(FindBy.Css(D_PasswordCSS)) Then
+                Debug.Print article & " Изменился адрес поля ввода пароля": Exit Function
+            End If: Ch.FindElement(FindBy.Css(D_PasswordCSS)).SendKeys D_Password
+
+            If Not Ch.IsElementPresent(FindBy.Css(D_ButtonCSS)) Then
+                Debug.Print article & " Изменился адрес кнопки авторизации": Exit Function
+            End If: Ch.FindElement(FindBy.Css(D_ButtonCSS)).Click
+
+    End If
+
+    If Not D_URL2 = "" Then
+        Ch.Get D_URL2
+    End If
+
+    Dim i As Integer
+    Do Until Dir(DownloadFolder & D_FileName, vbDirectory) <> vbNullString
+        Ch.Wait (100)
+        i = i + 1
+        If i > 100 Then
+            GoTo ErrorHandl
+        End If
+    Loop: Ch.Quit
+Exit Function
+
+ErrorHandl:
+        Ch.Quit
+        Debug.Print "Ошибка загрузки! " & "Артикул " & article & " не загружен. Изменилась ссылка или имя файла"
+End Function
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : UnRAR
+'
+' Purpose   : Support Function
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Function UnRAR(sArchiveName As String)
+    Const sWinRarAppPath As String = "C:\Program Files\WinRAR\WinRAR.exe"
+    'извлекаем данные из архива в скрытом окне(vbHide)
+    'с перезаписью существующих файлов (-o+)
+    Dim sWinRarApp As String
+        sWinRarApp = sWinRarAppPath & " E -o+ "
+    'добавляем двойные кавычки, что позволит нам работать с именем файла и путём, которые содержат пробелы.
+    'без кавычек пробелы недопустимы
+    UnRAR = shell(sWinRarApp & " """ & DownloadFolder & "\" & sArchiveName & """ """ & DownloadFolder & """ ") ', vbHide)
+End Function
+
+
+Sub All_Downloader()
+Allt = Timer
+ErrorI = 0
+ErrorMessage = ""
+
+
+    DownloadFolder = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\Исходники для исходников\"
+            Prices = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\"
+
+    On Error Resume Next
+        Kill DownloadFolder & "*"                                                 'Очистка папки загрузок
+        Kill Prices & "*"
+    On Error GoTo 0
+
+
+    Call DownloadFromMail
+
+    If successmail Then
+        Call Download_AR    'Скачивание через почту --------------------- + Запрос PQ
+        Call Download_LO    'Скачивание через почту --------------------- + Запрос PQ + Конечная обработка
+        Call Download_NS    'Скачивание через почту --------------------- + Запрос PQ + Конечная обработка
+        Call Download_MI    'Скачивание через почту --------------------- + Запрос PQ
+        Call Download_CTC   'Скачивание через почту ----------------------+ Запрос PQ + Конечная типо обработка
+    End If
+
+    Call Download_AN        'Скачивание с диска ------------------------- + Запрос PQ + Конечная типо обработка
+
+    Call Download_SL        'Скачивание DownloadFiles + Распаковка архива + Запрос PQ + Конечная обработка
+    Call Download_FP        'Скачивание DownloadFiles + Распаковка архива + Запрос PQ
+    Call Download_OA        'Скачивание DownloadFiles + Распаковка архива + Запрос PQ
+    Call Download_AT        'Скачивание DownloadFiles + Распаковка архива + Запрос PQ
+
+    Call Download_SHA       'Скачивание DownloadFiles ------------------- + Запрос PQ + Конечная обработка
+    Call Download_PA        'Скачивание DownloadFiles ------------------- + Запрос PQ + Конечная обработка
+    Call Download_D         'Скачивание DownloadFiles ------------------- + Запрос PQ + Конечная типо обработка
+    Call Download_AU        'Скачивание DownloadFiles ------------------- + Запрос PQ + Конечная типо обработка
+
+    Call Download_CVG       '---------------------------------------------- Запрос PQ + Конечная обработка
+    Call Download_LU        '---------------------------------------------- Запрос PQ + Конечная обработка
+    Call Download_ARP       '---------------------------------------------- Запрос PQ + Конечная типо обработка
+    Call Download_LTM       '---------------------------------------------- Запрос PQ
+    Call Download_GM        '---------------------------------------------- Запрос PQ
+    Call Download_IM        '---------------------------------------------- Запрос PQ
+    Call Download_IV        '---------------------------------------------- Запрос PQ
+    
+    Allt = Timer - Allt
+    Debug.Print "Загрузка прайсов завершена (" & Format(Allt / 60, "#") & "мин " & Format(Allt Mod 60, "#") & "с)"
+    If ErrorI <> 0 Then
+        If ErrorI = 1 Or ErrorI = 21 Then
+            Debug.Print "Не загружен:"
+            Debug.Print "    " & ErrorI & " прайс - " & Trim(ErrorMessage) & "."
+        End If
+        If (1 < ErrorI And ErrorI < 5) Or (21 < ErrorI And ErrorI < 25) Then
+            Debug.Print "Не загружено:"
+            Debug.Print "    " & ErrorI & " прайса - " & Trim(ErrorMessage) & "."
+        End If
+        If 4 < ErrorI And ErrorI < 21 Then
+            Debug.Print "Не загружено:"
+            Debug.Print "    " & ErrorI & " прайсов - " & Trim(ErrorMessage) & "."
+        End If
+    Else: Debug.Print "Все прайсы обработаны успешно"
+    End If
+    
+'    MsgBox "Загрузка прайсов завершена"
+
+End Sub
+
+
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Artimusic Dictribution"
+'
+' Article   : AR
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_AR()
+On Error GoTo ErrorHandl
+t = Timer
+        article = "AR "
+        FileName = Request(2, 1)
+'    DownloadFolder = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\Исходники для исходников\"
+'            Prices = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet1,8)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Дублированный столбец"" = Table.DuplicateColumn(#""Повышенные заголовки"", ""Номенклатура"", ""Копия Номенклатура"")," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Дублированный столбец"",{{""Копия Номенклатура"", ""Полное наименование""}, {""Номенклатура"", ""Наименование""}, {""Розничная"", ""Розница""}, {""Код"", ""Артикул""}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Переименованные столбцы"",{""Артикул"", ""Наименование"", ""Полное наименование"", ""Розница""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Другие удаленные столбцы"",{{""Розница"", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Измененный тип"", each ([Артикул] <> null))" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Logos"
+'
+' Article   : LO
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_LO()
+
+'On Error GoTo ErrorHandl
+t = Timer
+        article = "LO "
+        FileName = Request(2, 0)
+'    DownloadFolder = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\Исходники для исходников\"
+'            Prices = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & "    #""Повышенные заголовки"" = Table.PromoteHeaders(TDSheet1, [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Повышенные заголовки"",{{""Код номенклатуры"", type text}, {""Производитель"", type text}, {""Номенклатура"", type text}, {""Дополнительное описание"", type text}, {""Количество"", Int64.Type}, {""Цена Розница, руб"", type text}, {""Цена Дилер, руб"", type text}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Измененный тип"",{""Код номенклатуры"", ""Производитель"", ""Номенклатура"", ""Дополнительное описание"", ""Цена Розница, руб""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Объединенные столбцы"" = Table.CombineColumns(#""Другие удаленные столбцы"",{""Производитель"", ""Номенклатура""},Combiner.CombineTextByDelimiter("" "", QuoteStyle.None),""Наименование"")," & Chr(13) & "" & Chr(10) & _
+                "    #""Дублированный столбец"" = Table.DuplicateColumn(#""Объединенные столбцы"", ""Наименование"", ""Копия Наименование"")," & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"" = Table.ReorderColumns(#""Дублированный столбец"",{""Код номенклатуры"", ""Наименование"", ""Копия Наименование"", ""Дополнительное описание"", ""Цена Розница, руб""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Объединенные столбцы1"" = Table.CombineColumns(#""Переупорядоченные столбцы"",{""Копия Наименование"", ""Дополнительное описание""},Combiner.CombineTextByDelimiter("" - "", QuoteStyle.None),""Полное наименование"")" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Объединенные столбцы1"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "TDSheet"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+Exit Sub
+
+ErrorHandl2:
+        Debug.Print "Артикул " & article & " не загружен. Остатки не выгружались за последнюю неделю или изменилось название файла"
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Нева саунд"
+'
+' Article   : NS
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_NS()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "NS "
+        FileName = Request(2, 2)
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet1,6)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Артикул"", ""Наименование"", ""Производитель"", ""Цена""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each [Наименование] <> null and [Наименование] <> """")," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Строки с примененным фильтром"",{{""Цена"", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Дублированный столбец"" = Table.DuplicateColumn(#""Измененный тип"", ""Артикул"", ""Копия Артикул"")," & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"" = Table.ReorderColumns(#""Дублированный столбец"",{""Артикул"", ""Производитель"", ""Копия Артикул"", ""Наименование"", ""Цена""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Переупорядоченные столбцы"",{{""Наименование"", ""Полное наименование""}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Объединенные столбцы"" = Table.CombineColumns(#""Переименованные столбцы"",{""Производитель"", ""Копия Артикул""},Combiner.CombineTextByDelimiter("" "", QuoteStyle.None),""Наименование"")" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Объединенные столбцы"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "TDSheet"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "MixArt"
+'
+' Article   : MI
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_MI()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "MI "
+        FileName = Request(2, 3)
+'          FileName = ""
+    DownloadFolder = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\Исходники для исходников\"
+'э===================================================
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Source = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet1 = Source{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Renamed Columns"" = Table.RenameColumns(TDSheet1,{{""Column1"", ""Артикул""}, {""Column2"", ""Производитель""}, {""Column3"", ""Номенклатура""}, {""Column6"", ""Розница""}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Removed Top Rows"" = Table.Skip(#""Renamed Columns"",1)," & Chr(13) & "" & Chr(10) & _
+                "    #""Filtered Rows"" = Table.SelectRows(#""Removed Top Rows"", each ([Артикул] <> null))," & Chr(13) & "" & Chr(10) & _
+                "    #""Removed Other Columns"" = Table.SelectColumns(#""Filtered Rows"",{""Артикул"", ""Производитель"", ""Номенклатура"", ""Розница""})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Removed Other Columns"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "TDSheet"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Anzhee"
+'
+' Article   : AN
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_AN()
+
+'On Error GoTo ErrorHandl
+t = Timer
+        article = "AN "
+        URL = "https://drive.google.com/drive/folders/1yl7BKEpFoU1zqfQM9mVcE-BurxcktCJ9"
+        FileName = ""
+
+
+    DownloadFolder = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\Исходники для исходников\"
+        Prices = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\"
+
+    Set Ch = New Selenium.ChromeDriver
+        Ch.SetPreference "download.default_directory", (DownloadFolder)
+        Ch.AddArgument "start-maximized"
+        Ch.start
+        Ch.Get URL
+
+' Переключение вида !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+'======================================================================================
+    ButtonCSS = "//*[@id='drive_main_page']/div/div[3]/div[1]/div/div/div/div[2]/div/div[1]/div/div/div[2]/div/div[3]"
+    
+        If Ch.IsElementPresent(FindBy.XPath(ButtonCSS), 3000) Then
+            If Ch.FindElement(FindBy.XPath(ButtonCSS)).Attribute("aria-label") = "Сетка" Then
+                ButtonCSS = "#drive_main_page > div > div.g3Fmkb > div.S630me > div > div > div > div:nth-child(2) > div > div:nth-child(1) > div > div > div.a-s-tb-sc-Ja-Q.a-s-tb-sc-Ja-Q-Nm.a-Ba-Ed.a-s-Ba-dj.a-s-Ba-Ed-Be-nAm6yf > div > div:nth-child(3) > div > svg"
+                Ch.FindElement(FindBy.Css(ButtonCSS), 3000).ClickAndHold
+                Ch.Wait 100
+                Ch.FindElement(FindBy.Css(ButtonCSS), 3000).Click
+            End If
+        End If
+
+
+' Получение имени файла
+'======================================================================================                                        '1
+    ButtonCSS = "//*[@id=':1']/div/c-wiz/div[2]/c-wiz/div[1]/c-wiz/div/c-wiz/div[1]/c-wiz[2]/c-wiz/div/c-wiz[2]/div/div/div/div[1]/div[4]"
+        If Not Ch.IsElementPresent(FindBy.XPath(ButtonCSS), 3000) Then
+            Debug.Print article & " Изменился адрес кнопки 1": GoTo ErrorHandl
+        End If
+        FileName = Ch.FindElement(FindBy.XPath(ButtonCSS)).Text
+
+
+' Скачивание файла
+'======================================================================================
+    ButtonCSS = "//*[@id=':1']/div/c-wiz/div[2]/c-wiz/div[1]/c-wiz/div/c-wiz/div[1]/c-wiz[2]/c-wiz/div/c-wiz[2]/div/div/div/div[2]/div[1]/div/div[2]/div[1]"
+        If Not Ch.IsElementPresent(FindBy.XPath(ButtonCSS), 3000) Then
+            Debug.Print article & " Изменилось поле файла": GoTo ErrorHandl
+        End If
+        Ch.FindElement(FindBy.XPath(ButtonCSS)).ReleaseMouse
+
+    ButtonCSS = "//*[@id=':1']/div/c-wiz/div[2]/c-wiz/div[1]/c-wiz/div/c-wiz/div[1]/c-wiz[2]/c-wiz/div/c-wiz[2]/div/div/div/div[2]/div[2]"
+        If Not Ch.IsElementPresent(FindBy.XPath(ButtonCSS), 3000) Then
+            Debug.Print article & " Изменился адрес кнопки 2": GoTo ErrorHandl
+        End If
+        Ch.FindElement(FindBy.XPath(ButtonCSS)).Click
+
+
+    Dim i As Double
+    Do Until Dir(DownloadFolder & FileName, vbDirectory) <> vbNullString
+        Ch.Wait (100)
+        i = i + 0.1
+        If i > 30 Then
+            GoTo ErrorHandl
+        End If
+    Loop
+    Ch.Quit
+
+
+    Workbooks.Add: Openbook = True
+    
+    'для обработки " руб." в столбце значений
+'            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+'                "let" & Chr(13) & "" & Chr(10) & _
+'                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+'                "    TDSheet_Sheet = Источник{[Item=""TDSheet"",Kind=""Sheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+'                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet_Sheet,7)," & Chr(13) & "" & Chr(10) & _
+'                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+'                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Код"", ""Номенклатура, модификация"", ""Наименование для печати"", ""Цена, указана в РРЦ RUB""})," & Chr(13) & "" & Chr(10) & _
+'                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each [#""Номенклатура, модификация""] <> null and [#""Номенклатура, модификация""] <> """")," & Chr(13) & "" & Chr(10) & _
+'                "    #""Замененное значение"" = Table.ReplaceValue(#""Строки с примененным фильтром"","" руб."","""",Replacer.ReplaceText,{""Цена, указана в РРЦ RUB""})," & Chr(13) & "" & Chr(10) & _
+'                "    #""Измененный тип с языком"" = Table.TransformColumnTypes(#""Замененное значение"", {{""Цена, указана в РРЦ RUB"", Currency.Type}}, ""en-US"")" & Chr(13) & "" & Chr(10) & _
+'                "in" & Chr(13) & "" & Chr(10) & _
+'                "    #""Измененный тип с языком"""
+                
+    'без обработки
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet_Sheet = Источник{[Item=""TDSheet"",Kind=""Sheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet_Sheet,7)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Код"", ""Номенклатура, модификация"", ""Наименование для печати"", ""Цена, указана в РРЦ RUB""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each [#""Номенклатура, модификация""] <> null and [#""Номенклатура, модификация""] <> """")," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип с языком"" = Table.TransformColumnTypes(#""Строки с примененным фильтром"", {{""Цена, указана в РРЦ RUB"", Currency.Type}}, ""en-US"")" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип с языком"""
+                
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "TDSheet"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"            'Пока скидываю в готовые прайсы, но есть что доработать ( тут без формулы)
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "CVGAudio"
+'
+' Article   : CVG
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_CVG()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "CVG"
+        URL = "https://www.cvg.ru/docs/CVGAUDIO_DEALER_pricelist.xlsx"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="Прайс-лист CVGAUDIO", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(Web.Contents(""" & URL & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    #""Прайс-лист CVGAUDIO_Sheet"" = Источник{[Item=""Прайс-лист CVGAUDIO"",Kind=""Sheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(#""Прайс-лист CVGAUDIO_Sheet"",5)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки1"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки1"",{""артикул"", ""модель"", ""наименование"", ""розница (руб.)""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each ([артикул] <> null))," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Строки с примененным фильтром"",{{""артикул"", type text}, {""модель"", type text}, {""наименование"", type text}, {""розница (руб.)"", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Добавлен пользовательский объект"" = Table.AddColumn(#""Измененный тип"", ""Полное наименование"", each [модель] & "" - "" & [наименование])," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные столбцы"" = Table.RemoveColumns(#""Добавлен пользовательский объект"",{""наименование""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"" = Table.ReorderColumns(#""Удаленные столбцы"",{""артикул"", ""модель"", ""Полное наименование"", ""розница (руб.)""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Переупорядоченные столбцы"",{{""артикул"", ""Артикул""}, {""модель"", ""Наименование""}})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=""Прайс-лист CVGAUDIO"";Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [Прайс-лист CVGAUDIO]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "Прайс_лист_CVGAUDIO"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Slami"
+'
+' Article   : SL
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_SL()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "SL "
+        URL = "http://www.slami.ru/info/dilprice_slami.zip"
+        FileName = "dilprice_slami.zip"
+
+
+'    DownloadFolder = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\Исходники для исходников\"
+'            Prices = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\"
+
+    Call DownloadFiles(URL, FileName, Login, Password)
+    Call UnRAR(FileName)
+    Application.Wait Now + TimeSerial(0, 0, 1)
+
+    Dim i As Integer
+    Do Until Dir(DownloadFolder & "SLAMI PL " & Format(Date - i, "dd.mm.yyyy") & ".xls", vbDirectory) <> vbNullString
+        i = i + 1
+            If i = 7 Then
+                GoTo ErrorHandl2
+            End If
+    Loop
+    FileName = "SLAMI PL " & Format(Date - i, "dd.mm.yyyy") & ".xls"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet1,4)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Повышенные заголовки"", each ([Примечание] <> ""Снят с производства""))," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Строки с примененным фильтром"",{""Код"", ""Наименование"", ""РРЦ""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Другие удаленные столбцы"",{{""РРЦ"", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром1"" = Table.SelectRows(#""Измененный тип"", each ([Код] <> null))," & Chr(13) & "" & Chr(10) & _
+                "    #""Замененное значение"" = Table.ReplaceValue(#""Строки с примененным фильтром1"",""  "","" - "",Replacer.ReplaceText,{""Наименование""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Вставленный текст перед разделителем"" = Table.AddColumn(#""Замененное значение"", ""Текст перед разделителем"", each Text.BeforeDelimiter([Наименование], "" -""), type text)," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Вставленный текст перед разделителем"",{{""Текст перед разделителем"", ""Краткое наименование""}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"" = Table.ReorderColumns(#""Переименованные столбцы"",{""Код"", ""Краткое наименование"", ""Наименование"", ""РРЦ""})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "TDSheet"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+    
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+Exit Sub
+
+ErrorHandl2:
+        Debug.Print "Артикул " & article & " не загружен. Остатки не выгружались за последнюю неделю или изменилось название файла"
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "ОКНО Аудио"
+'
+' Article   : OA
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_OA()
+
+'On Error GoTo ErrorHandl
+t = Timer
+        article = "OA "
+        URL = "https://price.okno-audio.ru/Price.zip"
+        FileName = "Price.zip"
+
+
+    Call DownloadFiles(URL, FileName, Login, Password)
+    Call UnRAR(FileName)
+    FileName = "Price.xls"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="Основной прайс-лист", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    #""Основной прайс-лист1"" = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(#""Основной прайс-лист1"",7)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Артикул"", ""Наименование"", ""Розничная цена, руб.""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Другие удаленные столбцы"",{{""Розничная цена, руб."", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Измененный тип"", each [#""Артикул""] <> null and [#""Артикул""] <> """")" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=""Основной прайс-лист"";Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [Основной прайс-лист]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "Основной_прайс_лист"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Фокус про"
+'
+' Article   : FP
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_FP()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "FP "
+        URL = "http://www.pop-music.ru/files/focuspro.zip"
+        FileName = "focuspro.zip"
+    DownloadFolder = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\Исходники для исходников\"
+            Prices = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\"
+
+
+    Call DownloadFiles(URL, FileName, Login, Password)
+    Call UnRAR(FileName)
+    Application.Wait Now + TimeSerial(0, 0, 1)
+        Dim i As Integer
+
+
+    FileName = "Остатки фокуспро "
+        Do Until Dir(DownloadFolder & FileName & Format(Date - i, "dd.mm") & ".xls", vbDirectory) <> vbNullString
+            i = i + 1
+                If i = 7 Then
+                    GoTo VariantName2
+                End If
+        Loop
+GoTo nextstep
+
+VariantName2:
+    i = 0
+    FileName = "фокуспро"
+        Do Until Dir(DownloadFolder & FileName & Format(Date - i, "dd.mm") & ".xls", vbDirectory) <> vbNullString
+            i = i + 1
+                If i = 7 Then
+                    GoTo VariantName3
+                End If
+        Loop
+GoTo nextstep
+
+VariantName3:
+    i = 0
+    FileName = "фокуспро "
+        Do Until Dir(DownloadFolder & FileName & Format(Date - i, "dd.mm") & ".xls", vbDirectory) <> vbNullString
+            i = i + 1
+                If i = 7 Then
+                    GoTo VariantName4
+                End If
+        Loop
+GoTo nextstep
+
+VariantName4:
+    i = 0
+    FileName = "Остатки "
+        Do Until Dir(DownloadFolder & FileName & Format(Date - i, "dd.mm") & ".xls", vbDirectory) <> vbNullString
+            i = i + 1
+                If i = 7 Then
+                    GoTo ErrorHandl2
+                End If
+        Loop
+
+
+nextstep:
+    FileName = FileName & Format(Date - i, "dd.mm") & ".xls"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet1,7)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Номенклатура.Артикул "", ""Номенклатура"", ""Цена розничная""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Другие удаленные столбцы"",{{""Цена розничная"", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Измененный тип"",{{""Цена розничная"", ""Розница""}, {""Номенклатура.Артикул "", ""Артикул""}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Переименованные столбцы"", each [Артикул] <> null and [Артикул] <> """")" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "TDSheet"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+Exit Sub
+
+ErrorHandl2:
+        Debug.Print "Артикул " & article & " не загружен. Остатки не выгружались за последнюю неделю или изменилось название файла"
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "А&T Trade"
+'
+' Article   : AT
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_AT()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "AT "
+        URL = "http://www.attrade.ru/pr30fe16ff-24c4-4bd1-be40-69cbd4593924/TempFolder/Price_Stock.zip"
+        FileName = "Price_Stock.zip"
+        Login = "login"
+        Password = "parol"
+
+
+    Call DownloadFiles(URL, FileName, Login, Password)
+    Call UnRAR(FileName)
+    FileName = "Price_Stock.XLS"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="прайс-лист, наличие на складе", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    #""прайс-лист, наличие на складе1"" = Источник{[Name=""прайс-лист, наличие на складе""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(#""прайс-лист, наличие на складе1"",17)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Код"", ""Номенклатура"", ""Состояние"", ""Бренд"", ""Актуальная розница""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each ([Номенклатура] <> null and [Номенклатура] <> """") and ([Состояние] <> ""Снято с производства""))," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Строки с примененным фильтром"",{{""Актуальная розница"", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные столбцы"" = Table.RemoveColumns(#""Измененный тип"",{""Состояние""})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные столбцы"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=""прайс-лист, наличие на складе"";Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [прайс-лист, наличие на складе]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "прайс_лист__наличие_на_складе"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Dynatone"
+'
+' Article   : D
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_D()
+
+'On Error GoTo ErrorHandl
+t = Timer
+        article = "D  "
+        URL = "https://apidnt.ru/v2/download/DynaTone_dealer_price.xls?key=1b82fEC8-277-5123-554b-737B-af820D65B263"
+        FileName = "DynaTone_dealer_price.xls"
+        Login = "login"
+        Password = "parol"
+
+'    DownloadFolder = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\Исходники для исходников\"
+'            Prices = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\"
+
+
+    Call DownloadFiles(URL, FileName, Login, Password)
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet1,6)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Повышенные заголовки"",{{""Column1"", ""Артикул""}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Переименованные столбцы"",{""Артикул"", ""Наименование товаров"", ""Розничные руб."", ""Свойства""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each [Артикул] <> null and [Артикул] <> """")," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные столбцы"" = Table.RemoveColumns(#""Строки с примененным фильтром"",{""Свойства""})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные столбцы"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "TDSheet"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Show Atelier"
+'
+' Article   : SHA
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_SHA()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "SHA"
+        URL = "https://showatelier.ru/login.html"
+        URL2 = "https://showatelier.ru/download.html"
+        FileName = "SAStock.xls"
+        Login = "login"
+        Password = "parol"
+        LoginCSS = "label.loginUsernameLabel > input"
+        PasswordCSS = "label.loginPasswordLabel > input"
+        ButtonCSS = "span > input[type=submit]"
+
+    Call DownloadFiles(URL, FileName, Login, Password, LoginCSS, PasswordCSS, ButtonCSS, URL2)
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet1,8)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Артикул"", ""Бренд"", ""Номенклатура"", ""Розничная""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each [Артикул] <> null and [Артикул] <> """")," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Строки с примененным фильтром"",{{""Артикул"", type text}, {""Бренд"", type text}, {""Номенклатура"", type text}, {""Розничная"", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Разделить столбец по разделителю"" = Table.SplitColumn(#""Измененный тип"", ""Номенклатура"", Splitter.SplitTextByDelimiter(""#(lf)"", QuoteStyle.Csv), {""Номенклатура.1"", ""Номенклатура.2"", ""Номенклатура.3"", ""Номенклатура.4""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Объединенные столбцы"" = Table.CombineColumns(#""Разделить столбец по разделителю"",{""Бренд"", ""Номенклатура.1""},Combiner.CombineTextByDelimiter("" "", QuoteStyle.None),""Наименование"")," & Chr(13) & "" & Chr(10) & _
+                "    #""Объединенные столбцы1"" = Table.CombineColumns(#""Объединенные столбцы"",{""Номенклатура.2"", ""Номенклатура.3"", ""Номенклатура.4""},Combiner.CombineTextByDelimiter("" "", QuoteStyle.None),""Описание"")," & Chr(13) & "" & Chr(10) & _
+                "    #""Добавлен пользовательский объект"" = Table.AddColumn(#""Объединенные столбцы1"", ""Полное наименование"", each [Наименование] & "" - "" & [Описание])," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные столбцы"" = Table.RemoveColumns(#""Добавлен пользовательский объект"",{""Описание""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"" = Table.ReorderColumns(#""Удаленные столбцы"",{""Артикул"", ""Наименование"", ""Полное наименование"", ""Розничная""})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "TDSheet"
+                .Refresh BackgroundQuery:=False
+            End With
+
+    Range("E2").Select
+        ActiveCell.FormulaR1C1 = "=TRIM([@Наименование])"
+    Range("F2").Select
+        ActiveCell.FormulaR1C1 = "=TRIM([@[Полное наименование]])"
+
+    ActiveSheet.UsedRange.Value = ActiveSheet.UsedRange.Value
+
+    Range("B1:C1").Cut Range("E1")
+    Columns("E:F").Cut Destination:=Columns("B:C")
+
+        Columns("A:A").ColumnWidth = 13.71
+        Columns("A:A").NumberFormat = "@"
+        Columns("B:B").ColumnWidth = 35.57
+        Columns("C:C").ColumnWidth = 59.29
+        Columns("D:D").EntireColumn.AutoFit
+        Range("A1:D1").Font.Bold = True
+        Range("A1").Select
+
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "PASystem"
+'
+' Article   : PA
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_PA()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "PA "
+        URL = "https://dealers:pasrussia@dealer.pasystem.ru/Ostatki_price.xlsx"
+        FileName = "Ostatki_price.xlsx"
+        Login = "login"
+        Password = "parol"
+        
+    Call DownloadFiles(URL, FileName, Login, Password)
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet_Sheet = Источник{[Item=""TDSheet"",Kind=""Sheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet_Sheet,3)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Артикул / Группа"", ""Наименование"", ""Розничная цена,        руб.""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each [Наименование] <> null and [Наименование] <> """")," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Строки с примененным фильтром"",{{""Артикул / Группа"", type text}, {""Наименование"", type text}, {""Розничная цена,        руб."", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Измененный тип"",{{""Артикул / Группа"", ""Артикул""}, {""Розничная цена,        руб."", ""Розничная цена""}})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "TDSheet"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "AUVIX"
+'
+' Article   : AU
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_AU()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "AU "
+        URL = "https://b2b.auvix.ru/pricelist/dealer/Price_AUVIX_dealer_xlsx-xlsx/"
+        FileName = "Price_AUVIX_dealer_xlsx.xlsx"
+        Login = "login"
+        Password = "parol"
+        LoginCSS = "div:nth-child(1) > input"
+        PasswordCSS = "div:nth-child(2) > input"
+        ButtonCSS = "div:nth-child(2) > button"
+
+
+    Call DownloadFiles(URL, FileName, Login, Password, LoginCSS, PasswordCSS, ButtonCSS)
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="Worksheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    Worksheet_Sheet = Источник{[Item=""Worksheet"",Kind=""Sheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(Worksheet_Sheet,9)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки1"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки1"",{""Артикул"", ""Наименование"", ""Розничная цена, руб.""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each [Артикул] <> null and [Артикул] <> """")" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=Worksheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [Worksheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "Worksheet"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Aris"
+'
+' Article   : ARP
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_ARP()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "ARP"
+        URL = "https://arispro.ru/price/Aris_ostatki.xls"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="ARP", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(Web.Contents(""" & URL & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    ARP1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(ARP1,1)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Код"",""Артикул"", ""Номенклатура"", ""Розничные (руб.)""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each ([#""Розничные (руб.)""] <> null))," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Строки с примененным фильтром"",{{""Розничные (руб.)"", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Несвернутые столбцы"" = Table.UnpivotOtherColumns(#""Измененный тип"", {""Номенклатура"", ""Розничные (руб.)""}, ""Атрибут"", ""Значение"")," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные столбцы"" = Table.RemoveColumns(#""Несвернутые столбцы"",{""Атрибут""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Удаленные столбцы"",{{""Значение"", ""Артикул""}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"" = Table.ReorderColumns(#""Переименованные столбцы"",{""Артикул"", ""Номенклатура"", ""Розничные (руб.)""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром1"" = Table.SelectRows(#""Переупорядоченные столбцы"", each ([Артикул] <> ""          ""))" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром1"""
+'            ActiveWorkbook.Queries.Add Name:="ARP", Formula:= _
+'                "let" & Chr(13) & "" & Chr(10) & _
+'                "    Источник = Excel.Workbook(Web.Contents(""" & URL & """), null, true)," & Chr(13) & "" & Chr(10) & _
+'                "    ARP1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+'                "    #""Удаленные верхние строки"" = Table.Skip(ARP1,1)," & Chr(13) & "" & Chr(10) & _
+'                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+'                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Артикул"", ""Номенклатура"", ""Розничные (руб.)""})," & Chr(13) & "" & Chr(10) & _
+'                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Другие удаленные столбцы"",{{""Артикул"", type text}, {""Номенклатура"", type text}, {""Розничные (руб.)"", Int64.Type}})," & Chr(13) & "" & Chr(10) & _
+'                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Измененный тип"", each [Артикул] <> null and [Артикул] <> """")" & Chr(13) & "" & Chr(10) & _
+'                "in" & Chr(13) & "" & Chr(10) & _
+'                "    #""Строки с примененным фильтром"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=ARP;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [ARP]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "ARP"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Grand Mystery"
+'
+' Article   : GM
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_GM()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "GM "
+        URL = "https://grandm.ru/personal/upload/price.xls"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="GM", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(Web.Contents(""" & URL & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet1,8)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Номенклатура.Артикул "", ""Номенклатура/ Характеристика номенклатуры"", ""Розница""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each [#""Номенклатура.Артикул ""] <> null and [#""Номенклатура.Артикул ""] <> """")," & Chr(13) & "" & Chr(10) & _
+                "    #""Замененное значение"" = Table.ReplaceValue(#""Строки с примененным фильтром"","" RUB"","""",Replacer.ReplaceText,{""Розница""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Замененное значение1"" = Table.ReplaceValue(#""Замененное значение"",""      "","""",Replacer.ReplaceText,{""Номенклатура/ Характеристика номенклатуры""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Замененное значение1"",{{""Номенклатура.Артикул "", type text}, {""Номенклатура/ Характеристика номенклатуры"", type text}, {""Розница"", Int64.Type}})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=GM;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [GM]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "GM"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Imlight"
+'
+' Article   : IM
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_IM()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "IM "
+        URL = "https://price.imlight.ru/IMLIGHT_price.xls"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="IM", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(Web.Contents(""" & URL & """), null, true),    TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(TDSheet1,{{""Column1"", type text}, {""Column2"", type text}, {""Column3"", type text}, {""Column4"", type text}, {""Column5"", type text}, {""Column6"", type text}, {""Column7"", type text}, {""Column8"", type text}, {""Column9"", type text}, {""Column10"", type text}, {""Column11"", type text}, {""Column12"", type text}, {""Column13"", type text}, {""Column14"", type text}, {""Column15"", type text}, {""Column16"", type text}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(#""Измененный тип"",3)," & Chr(13) & "" & Chr(10) & "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Код"", ""Номенклатура"", ""Наименование для печати"", ""Производитель"", ""Прайс-лист (RUB)""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each [Наименование для печати] <> null and [Наименование для печати] <> """")," & Chr(13) & "" & Chr(10) & _
+                "    #""Добавлен пользовательский объект"" = Table.AddColumn(#""Строки с примененным фильтром"", ""Наименование"", each [Производитель]&"" ""&[Номенклатура])," & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"" = Table.ReorderColumns(#""Добавлен пользовательский объект"",{""Код"", ""Номенклатура"", ""Наименование"", ""Наименование для печати"", ""Производитель"", ""Прайс-лист (RUB)""})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=IM;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [IM]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "IM"
+                .Refresh BackgroundQuery:=False
+            End With
+        Columns("B:C").Select
+        Selection.ColumnWidth = 30
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Lutner"
+'
+' Article   : LU
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_LU()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "LU "
+        URL = "https://lutner.ru/bitrix/catalog_export/upload/lutner_new.csv"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="lutner_new", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Csv.Document(Web.Contents(""https://lutner.ru/bitrix/catalog_export/upload/lutner_new.csv""),[Delimiter="";"", Columns=39, Encoding=1251, QuoteStyle=QuoteStyle.None])," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(Источник, [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""IE_PREVIEW_TEXT"", ""IP_PROP140"", ""IP_PROP114"", ""IP_PROP96"", ""CV_PRICE_18""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each ([IP_PROP140] = """"))," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип с языком"" = Table.TransformColumnTypes(#""Строки с примененным фильтром"", {{""CV_PRICE_18"", Currency.Type}}, ""en-US"")," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Измененный тип с языком"",{{""IP_PROP114"", ""Бренд""}, {""IP_PROP96"", ""Артикул""}, {""CV_PRICE_18"", ""Розница""}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Добавлен пользовательский объект"" = Table.AddColumn(#""Переименованные столбцы"", ""Наименование"", each [Бренд] & "" "" & [Артикул])," & Chr(13) & "" & Chr(10) & _
+                "    #""Добавлен пользовательский объект1"" = Table.AddColumn(#""Добавлен пользовательский объект"", ""Полное наименование"", each [Бренд] & "" "" & [IE_PREVIEW_TEXT])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы1"" = Table.SelectColumns(#""Добавлен пользовательский объект1"",{""Артикул"", ""Розница"", ""Наименование"", ""Полное наименование""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"" = Table.ReorderColumns(#""Другие удаленные столбцы1"",{""Артикул"", ""Наименование"", ""Полное наименование"", ""Розница""})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Переупорядоченные столбцы"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=lutner_new;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [lutner_new]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "lutner_new"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+    
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "CTC"
+'
+' Article   : CTC
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_CTC()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "CTC"
+        FileName = Request(2, 4)
+'    DownloadFolder = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\Исходники для исходников\"
+'            Prices = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\Прайсы\"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="Каталог", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(File.Contents(""" & DownloadFolder & FileName & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "   TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "   #""Удаленные верхние строки"" = Table.Skip(TDSheet1,4)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Дублированный столбец"" = Table.DuplicateColumn(#""Повышенные заголовки"", ""Наименование"", ""Копия Наименование"")," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Дублированный столбец"",{{""Копия Наименование"", ""Полное наименование""}, {""Цена, рубль"", ""Розница""}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Переименованные столбцы"",{""Артикул"", ""Наименование"", ""Полное наименование"", ""Розница""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Другие удаленные столбцы"",{{""Розница"", Currency.Type}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Измененный тип"", each ([Наименование] <> null))" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=Каталог;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [Каталог]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "Каталог"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+    
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+    
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article & ""
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "Invask"
+'
+' Article   : IV
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_IV()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "IV "
+        URL = "https://invask.ru/downloads/Ostatki_tovara.xls?v=1"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="Sheet1", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(Web.Contents(""" & URL & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    Sheet1 = Источник{[Name=""Sheet1""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(Sheet1,11)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Код"", ""Бренд"", ""Наименование"", ""Розница""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Другие удаленные столбцы"", each [Код] <> null and [Код] <> """")" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=Sheet1;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [Sheet1]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+    
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
+
+
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+'
+' Procedure : Download Price "LTM-Music"
+'
+' Article   : LTM
+'
+'=================================================================================================================================================================================================
+'=================================================================================================================================================================================================
+Sub Download_LTM()
+
+On Error GoTo ErrorHandl
+t = Timer
+        article = "LTM"
+        URL = "https://ltm-music.ru/upload/excel/ostatki_retail.xls?1663149639"
+
+
+    Workbooks.Add: Openbook = True
+            ActiveWorkbook.Queries.Add Name:="TDSheet", Formula:= _
+                "let" & Chr(13) & "" & Chr(10) & _
+                "    Источник = Excel.Workbook(Web.Contents(""" & URL & """), null, true)," & Chr(13) & "" & Chr(10) & _
+                "    TDSheet1 = Источник{[Name=""TDSheet""]}[Data]," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки"" = Table.Skip(TDSheet1,5)," & Chr(13) & "" & Chr(10) & _
+                "    #""Повышенные заголовки"" = Table.PromoteHeaders(#""Удаленные верхние строки"", [PromoteAllScalars=true])," & Chr(13) & "" & Chr(10) & _
+                "    #""Другие удаленные столбцы"" = Table.SelectColumns(#""Повышенные заголовки"",{""Вид товара"", ""Торговая марка"", ""Column7"", ""Розничная""})," & Chr(13) & "" & Chr(10) & _
+                "    #""Переименованные столбцы"" = Table.RenameColumns(#""Другие удаленные столбцы"",{{""Column7"", ""Код""}})," & Chr(13) & "" & Chr(10) & _
+                "    #""Удаленные верхние строки1"" = Table.Skip(#""Переименованные столбцы"",4)," & Chr(13) & "" & Chr(10) & _
+                "    #""Строки с примененным фильтром"" = Table.SelectRows(#""Удаленные верхние строки1"", each [Код] <> null and [Код] <> """")," & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"" = Table.TransformColumnTypes(#""Строки с примененным фильтром"",{{""Розничная"", Currency.Type}})" & Chr(13) & "" & Chr(10) & _
+                "in" & Chr(13) & "" & Chr(10) & _
+                "    #""Измененный тип"""
+            With ActiveSheet.ListObjects.Add(SourceType:=0, Source:= _
+                "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=TDSheet;Extended Properties=""""" _
+                , Destination:=Range("$A$1")).QueryTable
+                .CommandType = xlCmdSql
+                .CommandText = Array("SELECT * FROM [TDSheet]")
+                .RowNumbers = False
+                .FillAdjacentFormulas = False
+                .PreserveFormatting = True
+                .RefreshOnFileOpen = False
+                .BackgroundQuery = True
+                .RefreshStyle = xlInsertDeleteCells
+                .SavePassword = False
+                .SaveData = True
+                .AdjustColumnWidth = True
+                .RefreshPeriod = 0
+                .PreserveColumnInfo = True
+                .ListObject.DisplayName = "TDSheet"
+                .Refresh BackgroundQuery:=False
+            End With
+    ActiveWorkbook.Close savechanges:=True, FileName:=Prices & Trim(article) & " " & Format(Date, "dd.mm.yyyy") & ".xlsx"
+
+URL = "": URL2 = "": Login = "": Password = "": FileName = "": LoginCSS = "": PasswordCSS = "": ButtonCSS = "": Openbook = False: t = Format(Timer - t, "#.##")
+Debug.Print "Артикул " & article & " загружен успешно (" & t & "с)"
+Exit Sub
+    
+ErrorHandl:
+        Debug.Print "Артикул " & article & " не загружен. Изменилась ссылка или таблица"
+        If Openbook = True Then
+            ActiveWorkbook.Close savechanges:=False
+        End If
+        If ErrorI = 0 Then
+            ErrorMessage = article
+            Else: ErrorMessage = ErrorMessage & ", " & article
+        End If
+        ErrorI = ErrorI + 1
+End Sub
