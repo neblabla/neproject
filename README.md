@@ -7,7 +7,7 @@
 В этом репозитории вы можете найти некоторые из моих проектов, выполненных во время обучения и практики.
 
 ## Навыки и технологии
-- Инструменты анализа данных: ``SQL``, ``Excel``, ``Excel.Power Query``, ``Excel.Power Pivot``, ``VBA``,``Power BI``, ``Jupiter Notebook`` 
+- Инструменты анализа данных: ``SQL``, ``Excel``, ``Excel.Power Query``, ``Excel.Power Pivot``, ``VBA``, ``Power BI``, ``Jupiter Notebook`` 
 - Языки программирования и библиотеки: ``Python``, ``Pandas``, ``math``, ``Selenium Basic``
 - Системы управления базами данных: ``MySQL``, ``PostgreSQL``
 - Средства визуализации данных: ``Matplotlib``, ``seaborn``, ``PowerBi``
